@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Azure Governance Bot</title>
+<style>
+  :root {
+    --azure: #0078d4;
+    --azure-dark: #004578;
+    --azure-mid: #0066b4;
+    --teal: #0099bc;
+    --bg1: #0a1f3a;
+    --bg2: #0e2a4d;
+    --card: #ffffff;
+    --border: #d7dde6;
+    --text: #1b2733;
+    --muted: #5b6b7c;
+    --good: #0f7b34;
+    --bad: #c0273c;
+    --amber: #b5750a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    background: radial-gradient(1200px 600px at 70% -10%, #14365f 0%, var(--bg2) 40%, var(--bg1) 100%);
+  }
+
+  .nav {
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px 28px;
+    backdrop-filter: blur(6px);
+    background: rgba(8, 22, 42, 0.55);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .logo { display:flex; align-items:center; gap:10px; }
+  .logo svg { width: 34px; height: 34px; }
+  .logo .title { color:#fff; font-weight:700; font-size:18px; letter-spacing:.2px; }
+  .logo .title span { color: var(--teal); }
+  .nav .badge {
+    margin-left:auto; font-size:12px; color:#cfe3f7;
+    border:1px solid rgba(255,255,255,.18); padding:5px 11px; border-radius:999px;
+    background: rgba(255,255,255,.05);
+  }
+
+  .hero { text-align:center; color:#fff; padding: 46px 20px 10px; }
+  .hero h1 { font-size: 34px; font-weight: 800; letter-spacing:-.5px; margin-bottom:10px; }
+  .hero h1 .grad {
+    background: linear-gradient(90deg, #4db8ff, #00d4e6);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .hero p { color:#a9c2dc; font-size:15px; max-width:560px; margin: 0 auto; line-height:1.5; }
+
+  .wrap { max-width: 680px; margin: 26px auto 60px; padding: 0 20px; }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35), 0 2px 6px rgba(0,0,0,.2);
+  }
+  .step-row { display:flex; gap:10px; margin-bottom: 22px; }
+  .chip {
+    flex:1; display:flex; align-items:center; gap:8px;
+    font-size:12px; color:var(--muted); padding:10px 12px;
+    border:1px solid var(--border); border-radius:10px; background:#fafcff;
+  }
+  .chip .dot {
+    width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+    background:var(--azure);color:#fff;font-size:11px;font-weight:700;flex:none;
+  }
+
+  label { display:block; font-weight:600; margin-bottom:7px; font-size:14px; }
+  label .opt { font-weight:400; color:var(--muted); font-size:12.5px; }
+  .field { margin-bottom: 20px; position: relative; }
+
+  /* Searchable combo box */
+  .combo { position: relative; }
+  .combo-input {
+    width: 100%; padding: 12px 38px 12px 13px; font-size: 14px;
+    border: 1.5px solid var(--border); border-radius: 9px; background:#fff;
+    color: var(--text); transition: border-color .15s, box-shadow .15s;
+  }
+  .combo-input:focus { outline:none; border-color:var(--azure); box-shadow:0 0 0 3px rgba(0,120,212,.15); }
+  .combo-input:disabled { background:#f0f2f5; color:#9aa7b4; cursor:not-allowed; }
+  .combo-input::placeholder { color:#9aa7b4; }
+  .combo-caret {
+    position:absolute; right:13px; top:50%; transform:translateY(-50%);
+    width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;
+    border-top:6px solid var(--muted); pointer-events:none;
+  }
+  .combo-clear {
+    position:absolute; right:30px; top:50%; transform:translateY(-50%);
+    width:18px;height:18px;border-radius:50%;border:none;background:#e6ebf1;color:#5b6b7c;
+    font-size:12px; cursor:pointer; display:none; line-height:1; padding:0;
+  }
+  .combo-clear:hover { background:#d6deea; }
+  .combo.has-value .combo-clear { display:block; }
+
+  .combo-list {
+    position:absolute; left:0; right:0; top:calc(100% + 4px);
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    box-shadow:0 12px 30px rgba(10,30,60,.18); max-height:260px; overflow-y:auto;
+    z-index:40; display:none;
+  }
+  .combo.open .combo-list { display:block; }
+  .combo-item {
+    padding:10px 13px; font-size:13.5px; cursor:pointer; border-bottom:1px solid #f0f3f7;
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .combo-item:last-child { border-bottom:none; }
+  .combo-item .main { color:var(--text); }
+  .combo-item .sub { color:var(--muted); font-size:11.5px; }
+  .combo-item:hover, .combo-item.active { background:#eaf3fc; }
+  .combo-item .hl { background:#ffe9a8; border-radius:2px; }
+  .combo-empty { padding:12px 13px; color:var(--muted); font-size:13px; }
+  .combo-count { padding:7px 13px; font-size:11px; color:var(--muted); background:#fafcff; border-bottom:1px solid #f0f3f7; position:sticky; top:0; }
+
+  .scope-note { font-size:12.5px; color: var(--muted); margin-top:6px; }
+  .scope-note code { background:#eef2f7; padding:1px 5px; border-radius:4px; font-size:12px; }
+
+  .btn-row { display:flex; gap:12px; }
+  .btn-row .primary { flex:1; }
+  button.primary {
+    padding: 14px; font-size: 14.5px; font-weight:700;
+    color:#fff; border:none; border-radius:10px; cursor:pointer;
+    transition: transform .08s, box-shadow .15s, filter .15s;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  button.primary.iac {
+    background: linear-gradient(135deg, #6a3fd4, #4326a8);
+    box-shadow: 0 8px 20px rgba(80,40,180,.35);
+  }
+  button.primary.report {
+    background: linear-gradient(135deg, var(--azure), var(--azure-mid));
+    box-shadow: 0 8px 20px rgba(0,120,212,.35);
+  }
+  button.primary:hover:not(:disabled) { filter:brightness(1.08); }
+  button.primary:active:not(:disabled) { transform: translateY(1px); }
+  button.primary:disabled { background:#aeb9c5; box-shadow:none; cursor:not-allowed; }
+
+  .spin { width:16px;height:16px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:r .7s linear infinite; display:none; }
+  @keyframes r { to { transform: rotate(360deg);} }
+  button.loading .spin { display:inline-block; }
+
+  #status { margin-top:18px; font-size:14px; line-height:1.5; }
+  .err { color:var(--bad); }
+  .ok  { color:var(--good); }
+  .muted { color:var(--muted); }
+  #status a {
+    display:inline-flex; align-items:center; gap:7px; margin-top:8px;
+    background:var(--good); color:#fff; text-decoration:none;
+    padding:9px 15px; border-radius:8px; font-weight:600; font-size:13.5px;
+  }
+  #status a:hover { filter:brightness(1.08); }
+  .warnbox {
+    margin-top:10px; padding:10px 12px;
+    background:#fdf2e0; color:#7a4f06; border:1px solid #f0d49a; border-radius:8px; font-size:12.5px;
+  }
+  .footer-note { text-align:center; color:#7d97b3; font-size:12px; margin-top:22px; }
+
+  /* Nav tabs */
+  .nav-tabs { display:flex; gap:6px; margin-left:24px; }
+  .nav-tab {
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+    color:#cfe3f7; padding:7px 16px; border-radius:8px; cursor:pointer; font-size:13.5px; font-weight:600;
+  }
+  .nav-tab.active { background:var(--azure); color:#fff; border-color:var(--azure); }
+  .nav-tab:hover:not(.active) { background:rgba(255,255,255,.12); }
+
+  /* Monitoring view */
+  .mon-wrap { max-width: 980px; margin: 8px auto 60px; padding: 0 20px; }
+  .mon-card { background:#fff; border-radius:14px; padding:22px; margin-bottom:18px; box-shadow:0 10px 30px rgba(0,0,0,.25); }
+  .mon-card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .mon-card-title { font-size:16px; font-weight:700; color:var(--text); }
+  .mon-actions { display:flex; gap:8px; }
+  .mon-btn { background:var(--azure); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; }
+  .mon-btn:hover { filter:brightness(1.08); }
+  .mon-btn.ghost { background:#eef2f7; color:var(--azure-dark); }
+  .mon-btn:disabled { background:#aeb9c5; cursor:not-allowed; }
+  .mon-meta { font-size:12.5px; color:var(--muted); }
+  .watch-search-wrap { margin:14px 0 8px; }
+  .watch-pick-list { max-height:260px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; }
+  .watch-pick-item { display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid #f0f3f7; font-size:13.5px; cursor:pointer; }
+  .watch-pick-item:last-child { border-bottom:none; }
+  .watch-pick-item:hover { background:#f4f8fc; }
+  .watch-pick-item input { width:16px; height:16px; }
+  .watch-pick-item .pid { color:var(--muted); font-size:11.5px; }
+  .watch-editor-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+
+  .dash-card { background:#fff; border-radius:14px; padding:20px; margin-bottom:16px; box-shadow:0 10px 30px rgba(0,0,0,.25); border-left:5px solid var(--border); }
+  .dash-card.sev-info  { border-left-color:#0078d4; }
+  .dash-card.sev-warn  { border-left-color:#b5750a; }
+  .dash-card.sev-alert { border-left-color:#c0273c; }
+  .dash-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .dash-title { font-size:15px; font-weight:700; color:var(--text); }
+  .dash-time { font-size:11.5px; color:var(--muted); }
+  .sev-pill { font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; }
+  .sev-info { background:#e9f2fb; color:#004578; }
+  .sev-warn { background:#fdf2e0; color:#b5750a; }
+  .sev-alert { background:#fbe9ec; color:#c0273c; }
+  .metric-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:10px; margin-bottom:12px; }
+  .metric { background:#f7fafd; border:1px solid var(--border); border-radius:10px; padding:11px 12px; position:relative; overflow:hidden; }
+  .metric .m-top { display:flex; align-items:center; gap:6px; margin-bottom:3px; }
+  .m-icon { width:15px; height:15px; flex:none; }
+  .metric .label { font-size:11px; color:var(--muted); }
+  .metric .value { font-size:19px; font-weight:700; color:var(--text); }
+  .metric .delta { font-size:11px; margin-left:6px; font-weight:600; }
+  .spark { width:100%; height:24px; margin-top:6px; display:block; opacity:.85; }
+  .delta.up { color:#c0273c; } .delta.down { color:#0f7b34; } .delta.flat { color:var(--muted); }
+  .delta.gup { color:#0f7b34; } .delta.gdown { color:#c0273c; }  /* good-up / good-down */
+  .digest-box { background:#f7fafd; border-left:3px solid var(--azure); border-radius:6px; padding:10px 12px; font-size:13px; line-height:1.5; color:var(--text); }
+  .digest-head { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:var(--azure-dark); text-transform:uppercase; letter-spacing:.4px; margin-bottom:5px; }
+  .dash-empty { text-align:center; color:#7d97b3; padding:30px; }
+  .changes-row { display:flex; gap:14px; margin-top:12px; flex-wrap:wrap; }
+  .change-col { flex:1; min-width:200px; background:#fafcff; border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .change-head { font-size:12px; font-weight:700; margin-bottom:6px; }
+  .change-head.added { color:#0f7b34; }
+  .change-head.removed { color:#c0273c; }
+  .change-item { font-size:12px; color:var(--text); padding:2px 0; }
+  .change-item .ctype { color:var(--muted); font-size:11px; }
+  .dash-head-right { display:flex; align-items:center; gap:10px; }
+  .mon-btn.small { padding:5px 11px; font-size:12px; }
+  .run-one-note { margin-top:10px; font-size:12.5px; color:var(--muted); font-style:italic; }
+
+  /* Floating chat widget */
+  .chat-fab {
+    position: fixed; right: 24px; bottom: 24px; z-index: 100;
+    width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--azure), var(--azure-mid));
+    box-shadow: 0 8px 24px rgba(0,120,212,.45);
+    display: grid; place-items: center; transition: transform .12s, filter .15s;
+  }
+  .chat-fab:hover { filter: brightness(1.08); transform: translateY(-2px); }
+  .chat-panel {
+    position: fixed; right: 24px; bottom: 24px; z-index: 101;
+    width: 380px; max-width: calc(100vw - 32px); height: 560px; max-height: calc(100vh - 48px);
+    background: #fff; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,.4); display: flex; flex-direction: column;
+    border: 1px solid var(--border);
+  }
+  .chat-head {
+    background: linear-gradient(135deg, var(--azure-dark), var(--azure));
+    color: #fff; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .chat-title { font-weight: 700; font-size: 15px; }
+  .chat-sub { font-size: 11.5px; color: #cfe3f7; margin-top: 1px; }
+  .chat-close { background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; line-height: 1; }
+  .chat-body { flex: 1; overflow-y: auto; padding: 14px; background: #f7fafd; }
+  .chat-msg {
+    margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; font-size: 13.5px;
+    line-height: 1.5; max-width: 88%; word-wrap: break-word;
+  }
+  .chat-msg.bot { background: #fff; border: 1px solid var(--border); color: var(--text); border-bottom-left-radius: 4px; }
+  .chat-msg.user { background: var(--azure); color: #fff; margin-left: auto; border-bottom-right-radius: 4px; }
+  .chat-msg.bot b { color: var(--azure-dark); }
+  .chat-msg code { background: #eef2f7; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+  .chat-msg.thinking { color: var(--muted); font-style: italic; }
+  .chat-suggest { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px; background: #f7fafd; }
+  .chat-suggest .sugg {
+    font-size: 11.5px; border: 1px solid var(--border); background: #fff; color: var(--azure-dark);
+    border-radius: 14px; padding: 5px 10px; cursor: pointer;
+  }
+  .chat-suggest .sugg:hover { background: #eaf3fc; }
+  .chat-input-row { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); background:#fff; }
+  .chat-input-row input {
+    flex: 1; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 20px; font-size: 13.5px;
+  }
+  .chat-input-row input:focus { outline: none; border-color: var(--azure); }
+  .chat-input-row button {
+    width: 40px; border: none; border-radius: 50%; background: var(--azure); color: #fff;
+    font-size: 15px; cursor: pointer;
+  }
+  .chat-input-row button:disabled { background: #aeb9c5; cursor: not-allowed; }
+  .chat-disabled-note { font-size: 11.5px; color: var(--amber); padding: 8px 14px; background:#fdf2e0; }
+</style>
+</head>
+<body>
+  <div class="nav">
+    <div class="logo">
+      <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#37b6ff"/>
+            <stop offset="1" stop-color="#0066b4"/>
+          </linearGradient>
+        </defs>
+        <path fill="url(#g)" d="M22.6 7.2L9.4 35.1a1.6 1.6 0 0 0 1.45 2.27h6.3c.66 0 1.26-.4 1.5-1.02l8.9-23.2-5.95-5.98a.6.6 0 0 0-.99.05z"/>
+        <path fill="#fff" opacity=".92" d="M27.8 14.3l-4.3 11.2 6.9 1.6-9.2 8.7a.5.5 0 0 0 .35.86h16.6a1.6 1.6 0 0 0 1.46-2.28L29.3 14.3a.83.83 0 0 0-1.5 0z"/>
+      </svg>
+      <div class="title">Azure <span>Governance</span> Bot</div>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" id="tabTools">Tools</button>
+      <button class="nav-tab" id="tabMonitor">Monitoring</button>
+    </div>
+    <div class="badge">● Connected via az login</div>
+  </div>
+
+  <!-- ===================== TOOLS VIEW ===================== -->
+  <div id="viewTools">
+  <div class="hero">
+    <h1>Govern your tenant with <span class="grad">one click</span></h1>
+    <p>Search for a subscription or resource group to generate Terraform backups and a full governance report.</p>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="step-row">
+        <div class="chip"><div class="dot">1</div> Search scope</div>
+        <div class="chip"><div class="dot">2</div> Generate report</div>
+        <div class="chip"><div class="dot">3</div> Download PDF</div>
+      </div>
+
+      <div class="field">
+        <label for="subInput">Subscription</label>
+        <div class="combo" id="subCombo">
+          <input type="text" class="combo-input" id="subInput"
+                 placeholder="Loading subscriptions…" autocomplete="off" disabled>
+          <button class="combo-clear" id="subClear" tabindex="-1" aria-label="Clear">×</button>
+          <div class="combo-caret"></div>
+          <div class="combo-list" id="subList"></div>
+        </div>
+        <div class="scope-note">Type to search by name or ID. Visible to your <code>az login</code> session.</div>
+      </div>
+
+      <div class="field">
+        <label for="rgInput">Resource Group <span class="opt">(optional — leave blank for the whole subscription)</span></label>
+        <div class="combo" id="rgCombo">
+          <input type="text" class="combo-input" id="rgInput"
+                 placeholder="Select a subscription first…" autocomplete="off" disabled>
+          <button class="combo-clear" id="rgClear" tabindex="-1" aria-label="Clear">×</button>
+          <div class="combo-caret"></div>
+          <div class="combo-list" id="rgList"></div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="primary iac" id="iacBtn" disabled>
+          <span class="spin"></span>
+          <span class="btnlabel">⬗ Generate Terraform IaC</span>
+        </button>
+        <button class="primary report" id="reportBtn" disabled>
+          <span class="spin"></span>
+          <span class="btnlabel">▤ Generate PDF Report</span>
+        </button>
+      </div>
+      <div id="status"></div>
+    </div>
+    <div class="footer-note">Runs locally on your machine • No credentials leave your device</div>
+  </div>
+  </div><!-- /viewTools -->
+
+  <!-- ===================== MONITORING VIEW ===================== -->
+  <div id="viewMonitor" style="display:none;">
+    <div class="hero">
+      <h1>Autonomous <span class="grad">monitoring</span></h1>
+      <p>Pick subscriptions to watch. The bot runs governance checks on a schedule, tracks trends, and flags what changed.</p>
+    </div>
+    <div class="mon-wrap">
+      <!-- Watch list manager -->
+      <div class="mon-card">
+        <div class="mon-card-head">
+          <div class="mon-card-title">Watched subscriptions</div>
+          <div class="mon-actions">
+            <button class="mon-btn ghost" id="editWatchBtn">Edit list</button>
+            <button class="mon-btn" id="runNowBtn">▶ Run all</button>
+          </div>
+        </div>
+        <div class="mon-meta" id="monMeta">Loading…</div>
+        <div id="watchEditor" style="display:none;">
+          <div class="watch-search-wrap">
+            <input type="text" id="watchSearch" class="combo-input" placeholder="Search subscriptions to add…" autocomplete="off">
+          </div>
+          <div class="watch-pick-list" id="watchPickList"></div>
+          <div class="watch-editor-actions">
+            <button class="mon-btn ghost" id="cancelWatchBtn">Cancel</button>
+            <button class="mon-btn" id="saveWatchBtn">Save watch list</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard cards -->
+      <div id="dashboard"></div>
+    </div>
+  </div>
+
+
+  <button id="chatFab" class="chat-fab" title="Ask about your report" style="display:none;">
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+  </button>
+
+  <div id="chatPanel" class="chat-panel" style="display:none;">
+    <div class="chat-head">
+      <div>
+        <div class="chat-title">Report Assistant</div>
+        <div class="chat-sub" id="chatScope">grounded in your report</div>
+      </div>
+      <button id="chatClose" class="chat-close" aria-label="Close">×</button>
+    </div>
+    <div class="chat-body" id="chatBody">
+      <div class="chat-msg bot">Ask me anything about this report — backups, exposed NSGs, cost drivers, what to fix first…</div>
+    </div>
+    <div class="chat-suggest" id="chatSuggest">
+      <button class="sugg">What are the top risks?</button>
+      <button class="sugg">Which VMs lack backup?</button>
+      <button class="sugg">Biggest cost drivers?</button>
+    </div>
+    <div class="chat-input-row">
+      <input type="text" id="chatInput" placeholder="Type your question…" autocomplete="off" disabled>
+      <button id="chatSend" disabled>➤</button>
+    </div>
+  </div>
+
+<script>
+const statusEl = document.getElementById('status');
+const iacBtn = document.getElementById('iacBtn');
+const reportBtn = document.getElementById('reportBtn');
+function setStatus(html, cls='') { statusEl.className = cls; statusEl.innerHTML = html; }
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function highlight(text, q){
+  if(!q) return esc(text);
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if(i<0) return esc(text);
+  return esc(text.slice(0,i))+'<span class="hl">'+esc(text.slice(i,i+q.length))+'</span>'+esc(text.slice(i+q.length));
+}
+
+/* ----- Reusable searchable combo box ----- */
+function makeCombo(prefix, opts) {
+  const root  = document.getElementById(prefix + 'Combo');
+  const input = document.getElementById(prefix + 'Input');
+  const list  = document.getElementById(prefix + 'List');
+  const clear = document.getElementById(prefix + 'Clear');
+  let items = [];        // {value, label, sub, search}
+  let filtered = [];
+  let activeIdx = -1;
+  let selected = null;   // selected item object
+
+  function render() {
+    const q = input.value.trim();
+    // When something is selected and input matches its label, show all.
+    const filterQ = (selected && input.value === selected.label) ? '' : q;
+    filtered = items.filter(it => it.search.includes(filterQ.toLowerCase()));
+    let html = '';
+    if (items.length) html += `<div class="combo-count">${filtered.length} of ${items.length}</div>`;
+    if (!filtered.length) {
+      html += `<div class="combo-empty">No matches</div>`;
+    } else {
+      filtered.forEach((it, idx) => {
+        html += `<div class="combo-item${idx===activeIdx?' active':''}" data-idx="${idx}">
+                   <span class="main">${highlight(it.label, filterQ)}</span>
+                   ${it.sub ? `<span class="sub">${highlight(it.sub, filterQ)}</span>` : ''}
+                 </div>`;
+      });
+    }
+    list.innerHTML = html;
+  }
+  function open()  { root.classList.add('open'); render(); }
+  function close() { root.classList.remove('open'); activeIdx = -1; }
+
+  function choose(it) {
+    selected = it;
+    input.value = it.label;
+    root.classList.add('has-value');
+    close();
+    if (opts.onSelect) opts.onSelect(it);
+  }
+  function clearSel() {
+    selected = null;
+    input.value = '';
+    root.classList.remove('has-value');
+    if (opts.onClear) opts.onClear();
+    input.focus(); open();
+  }
+
+  input.addEventListener('focus', open);
+  input.addEventListener('input', () => {
+    selected = null; root.classList.remove('has-value');
+    activeIdx = -1; open();
+    if (opts.onType) opts.onType();
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx+1, filtered.length-1); render(); scrollActive(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx-1, 0); render(); scrollActive(); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (activeIdx>=0 && filtered[activeIdx]) choose(filtered[activeIdx]); }
+    else if (e.key === 'Escape') { close(); }
+  });
+  function scrollActive(){
+    const el = list.querySelector('.combo-item.active');
+    if (el) el.scrollIntoView({block:'nearest'});
+  }
+  list.addEventListener('mousedown', e => {
+    const item = e.target.closest('.combo-item');
+    if (item) { e.preventDefault(); choose(filtered[+item.dataset.idx]); }
+  });
+  clear.addEventListener('mousedown', e => { e.preventDefault(); clearSel(); });
+  document.addEventListener('click', e => { if (!root.contains(e.target)) close(); });
+
+  return {
+    setItems(arr) { items = arr; selected = null; render(); },
+    enable(ph) { input.disabled = false; if (ph) input.placeholder = ph; },
+    disable(ph) { input.disabled = true; input.value=''; root.classList.remove('has-value'); items=[]; if (ph) input.placeholder = ph; },
+    getSelected() { return selected; },
+    reset(ph) { selected=null; input.value=''; root.classList.remove('has-value'); if(ph) input.placeholder=ph; },
+  };
+}
+
+/* ----- Wire up the two combos ----- */
+const rgCombo = makeCombo('rg', {
+  onSelect: () => refreshSubmit(),
+  onClear:  () => refreshSubmit(),
+  onType:   () => refreshSubmit(),
+});
+
+const subCombo = makeCombo('sub', {
+  onSelect: (it) => { loadResourceGroups(it.value); refreshSubmit(); },
+  onClear:  () => { rgCombo.disable('Select a subscription first…'); refreshSubmit(); },
+  onType:   () => { refreshSubmit(); },
+});
+
+function refreshSubmit() {
+  const enabled = !!subCombo.getSelected();
+  iacBtn.disabled = !enabled;
+  reportBtn.disabled = !enabled;
+}
+
+async function loadSubscriptions() {
+  try {
+    const res = await fetch('/api/subscriptions');
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    const subs = await res.json();
+    subCombo.setItems(subs.map(s => ({
+      value: s.subscription_id,
+      label: s.display_name,
+      sub: s.subscription_id,
+      search: (s.display_name + ' ' + s.subscription_id).toLowerCase(),
+    })));
+    subCombo.enable('Search subscriptions by name or ID…');
+  } catch (e) {
+    setStatus('Could not load subscriptions: ' + e.message + ' — is <code>az login</code> done?', 'err');
+  }
+}
+
+async function loadResourceGroups(subId) {
+  rgCombo.disable('Loading resource groups…');
+  try {
+    const res = await fetch('/api/resource-groups/' + subId);
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    const rgs = await res.json();
+    rgCombo.setItems(rgs.map(rg => ({
+      value: rg.name,
+      label: rg.name,
+      sub: rg.location,
+      search: (rg.name + ' ' + rg.location).toLowerCase(),
+    })));
+    rgCombo.enable(`Search ${rgs.length} resource groups (optional)…`);
+  } catch (e) {
+    setStatus('Could not load resource groups: ' + e.message, 'err');
+  }
+}
+
+function setBtnLoading(btn, loading, loadingText, normalText) {
+  const label = btn.querySelector('.btnlabel');
+  if (loading) { btn.classList.add('loading'); label.textContent = loadingText; }
+  else { btn.classList.remove('loading'); label.textContent = normalText; }
+}
+
+function currentScope() {
+  const sub = subCombo.getSelected();
+  const rg = rgCombo.getSelected();
+  return {
+    subscription_id: sub.value,
+    subscription_name: sub.label,
+    resource_group: rg ? rg.value : null,
+  };
+}
+
+reportBtn.addEventListener('click', async () => {
+  const sub = subCombo.getSelected();
+  if (!sub) return;
+  iacBtn.disabled = true; reportBtn.disabled = true;
+  setBtnLoading(reportBtn, true, 'Generating report…', '▤ Generate PDF Report');
+  setStatus('Collecting governance data from Azure — this can take a minute.', 'muted');
+  try {
+    const res = await fetch('/api/report', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentScope()),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    const out = await res.json();
+    let html = '<div class="ok">✓ Report ready.</div>';
+    html += '<a href="' + out.download_url + '" target="_blank">⬇ Download PDF report</a>';
+    if (out.warnings && out.warnings.length) {
+      html += '<div class="warnbox"><b>Some sections had collection issues '
+            + '(marked DATA UNAVAILABLE in the PDF):</b>';
+      out.warnings.forEach(w => {
+        html += '<div style="margin-top:6px;"><b>' + w.section + '</b>'
+              + '<pre style="white-space:pre-wrap;font-size:11px;margin:3px 0 0;'
+              + 'background:rgba(0,0,0,.05);padding:6px;border-radius:5px;'
+              + 'max-height:120px;overflow:auto;">' + (w.error || '(no detail)') + '</pre></div>';
+      });
+      html += '</div>';
+    }
+    setStatus(html, '');
+    // Activate the chatbot grounded in this report.
+    if (out.session_id) {
+      activateChat(out.session_id, out.chat_available, out.chat_reason,
+                   sub.label, currentScope().resource_group);
+    }
+  } catch (e) {
+    setStatus('<span class="err">Report generation failed: ' + e.message + '</span>', '');
+  } finally {
+    setBtnLoading(reportBtn, false, '', '▤ Generate PDF Report');
+    refreshSubmit();
+  }
+});
+
+iacBtn.addEventListener('click', async () => {
+  const sub = subCombo.getSelected();
+  if (!sub) return;
+  iacBtn.disabled = true; reportBtn.disabled = true;
+  setBtnLoading(iacBtn, true, 'Exporting Terraform…', '⬗ Generate Terraform IaC');
+  setStatus('Running aztfexport — exporting resources to Terraform. This can take several minutes for large scopes.', 'muted');
+  try {
+    const res = await fetch('/api/iac', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentScope()),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    const out = await res.json();
+    let html = '<div class="ok">✓ Terraform IaC generated for ' + out.scope + '.</div>';
+    html += '<div class="muted" style="margin-top:4px;font-size:13px;">'
+          + out.success_count + ' of ' + out.rg_count + ' resource group(s), '
+          + out.total_resources + ' resources exported.</div>';
+    html += '<a href="' + out.download_url + '" target="_blank">⬇ Download IaC (.zip)</a>';
+    if (out.errors && out.errors.length) {
+      html += '<div class="warnbox"><b>Some resource groups could not be exported:</b>';
+      out.errors.forEach(e => {
+        html += '<div style="margin-top:6px;"><b>' + e.resource_group + '</b>'
+              + '<pre style="white-space:pre-wrap;font-size:11px;margin:3px 0 0;'
+              + 'background:rgba(0,0,0,.05);padding:6px;border-radius:5px;'
+              + 'max-height:140px;overflow:auto;">' + (e.error || '') + '</pre></div>';
+      });
+      html += '</div>';
+    }
+    setStatus(html, '');
+  } catch (e) {
+    setStatus('<span class="err">IaC export failed: ' + e.message + '</span>', '');
+  } finally {
+    setBtnLoading(iacBtn, false, '', '⬗ Generate Terraform IaC');
+    refreshSubmit();
+  }
+});
+
+loadSubscriptions();
+
+/* ===================== MONITORING VIEW ===================== */
+const tabTools = document.getElementById('tabTools');
+const tabMonitor = document.getElementById('tabMonitor');
+const viewTools = document.getElementById('viewTools');
+const viewMonitor = document.getElementById('viewMonitor');
+let allSubs = [];        // cached subscription list for the picker
+let currentWatch = [];   // current watch list
+
+tabTools.addEventListener('click', () => switchView('tools'));
+tabMonitor.addEventListener('click', () => switchView('monitor'));
+
+function switchView(v) {
+  const mon = v === 'monitor';
+  viewTools.style.display = mon ? 'none' : 'block';
+  viewMonitor.style.display = mon ? 'block' : 'none';
+  tabTools.classList.toggle('active', !mon);
+  tabMonitor.classList.toggle('active', mon);
+  if (mon) loadDashboard();
+}
+
+const monMeta = document.getElementById('monMeta');
+const editWatchBtn = document.getElementById('editWatchBtn');
+const watchEditor = document.getElementById('watchEditor');
+const watchSearch = document.getElementById('watchSearch');
+const watchPickList = document.getElementById('watchPickList');
+const cancelWatchBtn = document.getElementById('cancelWatchBtn');
+const saveWatchBtn = document.getElementById('saveWatchBtn');
+const runNowBtn = document.getElementById('runNowBtn');
+const dashboard = document.getElementById('dashboard');
+
+async function ensureSubs() {
+  if (allSubs.length) return;
+  try {
+    const res = await fetch('/api/subscriptions');
+    allSubs = await res.json();
+  } catch (e) { allSubs = []; }
+}
+
+async function loadDashboard() {
+  monMeta.textContent = 'Loading…';
+  try {
+    const res = await fetch('/api/monitor/dashboard');
+    const data = await res.json();
+    currentWatch = data.subscriptions.map(s => ({
+      subscription_id: s.subscription_id, subscription_name: s.subscription_name }));
+    renderMeta(data);
+    renderDashboard(data);
+  } catch (e) {
+    monMeta.textContent = 'Could not load dashboard: ' + e.message;
+  }
+}
+
+function renderMeta(data) {
+  const n = data.subscriptions.length;
+  const last = data.last_run_utc ? new Date(data.last_run_utc).toLocaleString() : 'never';
+  monMeta.innerHTML = n
+    ? `Watching <b>${n}</b> subscription(s). Last run: ${last}.`
+    : 'No subscriptions watched yet. Click <b>Edit list</b> to choose some.';
+}
+
+function fmt(v) { return (v === null || v === undefined) ? '—' : v; }
+
+// metric definitions: key -> {label, goodDirection}
+// Inline SVG icons (stroke uses currentColor so they inherit the accent color).
+const ICONS = {
+  backup: '<path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  alert:  '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  advisor:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+  cost:   '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  storage:'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/>',
+  cube:   '<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.3 7 12 12 20.7 7"/><line x1="12" y1="22" x2="12" y2="12"/>',
+  vm:     '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+};
+function icon(name, color) {
+  return `<svg class="m-icon" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.cube}</svg>`;
+}
+
+const METRICS = [
+  { k:'backup_coverage_pct', label:'Backup coverage', suffix:'%', good:'up',   icon:'backup',  color:'#0f7b34' },
+  { k:'vms_unprotected',     label:'Unprotected VMs',  good:'down',             icon:'vm',      color:'#c0273c' },
+  { k:'nsg_internet_open',   label:'Internet-open NSG', good:'down',            icon:'shield',  color:'#c0273c' },
+  { k:'nsg_any_any',         label:'Any-any rules',    good:'down',             icon:'alert',   color:'#b5750a' },
+  { k:'advisor_security',    label:'Advisor security', good:'down',             icon:'advisor', color:'#0078d4' },
+  { k:'cost_total',          label:'Cost (last mo.)',  good:'down',             icon:'cost',    color:'#0f7b34' },
+  { k:'file_shares_unprotected', label:'Shares no backup', good:'down',         icon:'storage', color:'#b5750a' },
+  { k:'resource_total',      label:'Resources',        good:'flat',             icon:'cube',    color:'#0078d4' },
+  { k:'policy_compliance_pct', label:'Policy compliance', suffix:'%', good:'up',  icon:'advisor', color:'#0f7b34' },
+  { k:'policy_exemptions',   label:'Policy exemptions', good:'down',             icon:'alert',   color:'#b5750a' },
+];
+
+// Build a tiny inline SVG sparkline from a series of numbers.
+function sparkline(values, color) {
+  const nums = values.filter(v => typeof v === 'number');
+  if (nums.length < 2) return '';
+  const w = 120, h = 28, pad = 2;
+  const min = Math.min(...nums), max = Math.max(...nums);
+  const range = (max - min) || 1;
+  const step = (w - pad*2) / (nums.length - 1);
+  const pts = nums.map((v, i) => {
+    const x = pad + i * step;
+    const y = h - pad - ((v - min) / range) * (h - pad*2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const last = pts[pts.length - 1].split(',');
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polyline fill="none" stroke="${color}" stroke-width="1.5" points="${pts.join(' ')}"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="2" fill="${color}"/>
+  </svg>`;
+}
+
+function deltaHtml(cur, prev, good) {
+  if (cur === null || cur === undefined || prev === null || prev === undefined) return '';
+  const d = Math.round((cur - prev) * 100) / 100;
+  if (d === 0) return '<span class="delta flat">→</span>';
+  const arrow = d > 0 ? '▲' : '▼';
+  let cls;
+  if (good === 'flat') cls = 'flat';
+  else if (good === 'up') cls = d > 0 ? 'gup' : 'gdown';
+  else cls = d > 0 ? 'up' : 'down';  // good is down: increase is bad (red)
+  return `<span class="delta ${cls}">${arrow}${Math.abs(d)}</span>`;
+}
+
+function renderDashboard(data) {
+  if (!data.subscriptions.length) {
+    dashboard.innerHTML = '<div class="dash-empty">Nothing watched yet. Add subscriptions to begin monitoring.</div>';
+    return;
+  }
+  let html = '';
+  data.subscriptions.forEach(s => {
+    const L = s.latest, P = s.previous, dg = s.digest;
+    const sev = dg ? dg.severity : 'info';
+    const time = s.last_run_utc ? new Date(s.last_run_utc).toLocaleString() : 'not yet run';
+    let metricsHtml = '';
+    if (L) {
+      // Build per-metric history series for sparklines.
+      const hist = s.history || [];
+      METRICS.forEach(m => {
+        const cur = L[m.k];
+        const suf = m.suffix || '';
+        const series = hist.map(h => h.metrics ? h.metrics[m.k] : null);
+        const spark = sparkline(series, m.color);
+        metricsHtml += `<div class="metric">
+            <div class="m-top">${icon(m.icon, m.color)}<span class="label">${m.label}</span></div>
+            <div class="value">${fmt(cur)}${cur!==null&&cur!==undefined?suf:''}${P ? deltaHtml(cur, P[m.k], m.good) : ''}</div>
+            ${spark}
+          </div>`;
+      });
+    } else {
+      metricsHtml = '<div class="dash-empty">No data yet — run monitoring to capture a baseline.</div>';
+    }
+    html += `<div class="dash-card sev-${sev}" data-sid="${s.subscription_id}" data-sname="${s.subscription_name}">
+      <div class="dash-head">
+        <div><div class="dash-title">${s.subscription_name}</div>
+        <div class="dash-time">Last run: ${time}</div></div>
+        <div class="dash-head-right">
+          <span class="sev-pill sev-${sev}">${sev.toUpperCase()}</span>
+          <button class="mon-btn small run-one-btn">▶ Run</button>
+        </div>
+      </div>
+      <div class="metric-grid">${metricsHtml}</div>
+      ${dg ? `<div class="digest-box"><div class="digest-head"><svg viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="m-icon"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg><span>AI digest</span></div>${mdLite(dg.digest_text)}</div>` : ''}
+      ${renderChanges(dg)}
+    </div>`;
+  });
+  dashboard.innerHTML = html;
+}
+
+function renderChanges(dg) {
+  if (!dg || !dg.changes) return '';
+  const added = dg.changes.added || [];
+  const removed = dg.changes.removed || [];
+  if (!added.length && !removed.length) return '';
+  let h = '<div class="changes-row">';
+  if (added.length) {
+    h += '<div class="change-col"><div class="change-head added">＋ Added (' + added.length + ')</div>';
+    h += added.slice(0, 25).map(r =>
+      `<div class="change-item"><b>${r.name}</b> <span class="ctype">${(r.type||'').split('/').pop()}</span></div>`).join('');
+    if (added.length > 25) h += `<div class="change-item">…and ${added.length-25} more</div>`;
+    h += '</div>';
+  }
+  if (removed.length) {
+    h += '<div class="change-col"><div class="change-head removed">－ Removed (' + removed.length + ')</div>';
+    h += removed.slice(0, 25).map(r =>
+      `<div class="change-item"><b>${r.name}</b> <span class="ctype">${(r.type||'').split('/').pop()}</span></div>`).join('');
+    if (removed.length > 25) h += `<div class="change-item">…and ${removed.length-25} more</div>`;
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+// Watch list editor
+editWatchBtn.addEventListener('click', async () => {
+  await ensureSubs();
+  watchEditor.style.display = watchEditor.style.display === 'none' ? 'block' : 'none';
+  if (watchEditor.style.display === 'block') renderPickList('');
+});
+cancelWatchBtn.addEventListener('click', () => { watchEditor.style.display = 'none'; });
+watchSearch.addEventListener('input', () => renderPickList(watchSearch.value.trim().toLowerCase()));
+
+function renderPickList(q) {
+  const watchedIds = new Set(currentWatch.map(w => w.subscription_id));
+  const filtered = allSubs.filter(s =>
+    !q || s.display_name.toLowerCase().includes(q) || s.subscription_id.includes(q));
+  watchPickList.innerHTML = filtered.slice(0, 200).map(s => {
+    const checked = watchedIds.has(s.subscription_id) ? 'checked' : '';
+    return `<label class="watch-pick-item">
+      <input type="checkbox" value="${s.subscription_id}" data-name="${s.display_name}" ${checked}>
+      <span>${s.display_name}<br><span class="pid">${s.subscription_id}</span></span>
+    </label>`;
+  }).join('') || '<div class="dash-empty">No matches</div>';
+}
+
+saveWatchBtn.addEventListener('click', async () => {
+  const checks = watchPickList.querySelectorAll('input[type=checkbox]:checked');
+  // Merge: keep previously-watched that aren't in the current filtered view, plus checked ones
+  const picked = {};
+  currentWatch.forEach(w => picked[w.subscription_id] = w.subscription_name);
+  // Remove any that are unchecked but currently visible
+  watchPickList.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    if (!cb.checked) delete picked[cb.value];
+  });
+  checks.forEach(cb => picked[cb.value] = cb.dataset.name);
+  const subscriptions = Object.entries(picked).map(([id, name]) =>
+    ({ subscription_id: id, subscription_name: name }));
+  saveWatchBtn.disabled = true; saveWatchBtn.textContent = 'Saving…';
+  try {
+    await fetch('/api/monitor/watchlist', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ subscriptions }) });
+    watchEditor.style.display = 'none';
+    await loadDashboard();
+  } catch (e) { alert('Save failed: ' + e.message); }
+  finally { saveWatchBtn.disabled = false; saveWatchBtn.textContent = 'Save watch list'; }
+});
+
+runNowBtn.addEventListener('click', async () => {
+  if (!currentWatch.length) { alert('Add subscriptions to watch first.'); return; }
+  runNowBtn.disabled = true; runNowBtn.textContent = 'Running…';
+  monMeta.innerHTML = 'Running governance checks across watched subscriptions — this can take a few minutes…';
+  try {
+    const res = await fetch('/api/monitor/run-now', { method:'POST' });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    await loadDashboard();
+  } catch (e) {
+    monMeta.textContent = 'Run failed: ' + e.message;
+  } finally {
+    runNowBtn.disabled = false; runNowBtn.textContent = '▶ Run all';
+  }
+});
+
+// Per-subscription "Run" button (event delegation, since cards re-render).
+dashboard.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.run-one-btn');
+  if (!btn) return;
+  const card = btn.closest('.dash-card');
+  const sid = card.dataset.sid;
+  const sname = card.dataset.sname;
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = 'Running…';
+  // Show an inline note on the card while it runs.
+  const note = document.createElement('div');
+  note.className = 'run-one-note';
+  note.textContent = 'Running governance checks for this subscription — a minute or two…';
+  card.appendChild(note);
+  try {
+    const res = await fetch('/api/monitor/run-one', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ subscription_id: sid, subscription_name: sname }) });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    await loadDashboard();  // refresh all cards (cheap, just reads DB)
+  } catch (err) {
+    note.textContent = 'Run failed: ' + err.message;
+    note.style.color = 'var(--bad)';
+    btn.disabled = false; btn.textContent = orig;
+  }
+});
+
+/* ----- Floating chatbot ----- */
+const chatFab = document.getElementById('chatFab');
+const chatPanel = document.getElementById('chatPanel');
+const chatClose = document.getElementById('chatClose');
+const chatBody = document.getElementById('chatBody');
+const chatInput = document.getElementById('chatInput');
+const chatSend = document.getElementById('chatSend');
+const chatScope = document.getElementById('chatScope');
+const chatSuggest = document.getElementById('chatSuggest');
+let chatSession = null;
+let chatHistory = [];
+
+function mdLite(t) {
+  t = t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  t = t.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  t = t.replace(/`(.+?)`/g,'<code>$1</code>');
+  t = t.replace(/^\s*[-*]\s+(.*)$/gm,'• $1');
+  t = t.replace(/\n/g,'<br>');
+  return t;
+}
+
+function addMsg(text, who) {
+  const d = document.createElement('div');
+  d.className = 'chat-msg ' + who;
+  d.innerHTML = who === 'bot' ? mdLite(text) : text.replace(/</g,'&lt;');
+  chatBody.appendChild(d);
+  chatBody.scrollTop = chatBody.scrollHeight;
+  return d;
+}
+
+function activateChat(sessionId, available, reason, subLabel, rg) {
+  chatSession = sessionId;
+  chatHistory = [];
+  chatScope.textContent = rg ? (subLabel + ' › ' + rg) : subLabel;
+  chatFab.style.display = 'grid';
+  if (available) {
+    chatInput.disabled = false; chatSend.disabled = false;
+  } else {
+    chatInput.disabled = true; chatSend.disabled = true;
+    if (!document.getElementById('chatDisabledNote')) {
+      const note = document.createElement('div');
+      note.id = 'chatDisabledNote'; note.className = 'chat-disabled-note';
+      note.textContent = 'Chat needs an LLM key: ' + (reason || 'unavailable') +
+                         '. Set ANTHROPIC_API_KEY and restart the bot.';
+      chatPanel.insertBefore(note, chatPanel.querySelector('.chat-input-row'));
+    }
+  }
+}
+
+function openChat() { chatPanel.style.display = 'flex'; chatFab.style.display = 'none'; chatInput.focus(); }
+function closeChat() { chatPanel.style.display = 'none'; chatFab.style.display = 'grid'; }
+chatFab.addEventListener('click', openChat);
+chatClose.addEventListener('click', closeChat);
+
+async function sendChat(q) {
+  if (!q || !chatSession) return;
+  addMsg(q, 'user');
+  chatHistory.push({ role: 'user', content: q });
+  chatInput.value = '';
+  chatInput.disabled = true; chatSend.disabled = true;
+  const thinking = addMsg('Thinking…', 'bot');
+  thinking.classList.add('thinking');
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: chatSession, question: q, history: chatHistory }),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    const out = await res.json();
+    thinking.remove();
+    addMsg(out.answer, 'bot');
+    chatHistory.push({ role: 'assistant', content: out.answer });
+  } catch (e) {
+    thinking.remove();
+    addMsg('Error: ' + e.message, 'bot');
+  } finally {
+    chatInput.disabled = false; chatSend.disabled = false; chatInput.focus();
+  }
+}
+
+chatSend.addEventListener('click', () => sendChat(chatInput.value.trim()));
+chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(chatInput.value.trim()); });
+chatSuggest.addEventListener('click', e => {
+  if (e.target.classList.contains('sugg')) sendChat(e.target.textContent);
+});
+</script>
+
+</body>
+</html>
